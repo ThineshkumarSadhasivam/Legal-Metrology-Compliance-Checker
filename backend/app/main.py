@@ -4,6 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import Base, engine
 from app.api.auth import router as auth_router
 
+from app.models.user import User
+from app.models.inspection import Inspection
+from app.models.inspection_image import InspectionImage
+
+from app.api.inspection import router as inspections_router
+from app.api.inspection_images import router as inspection_images_router
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -20,7 +26,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
-
+app.include_router(inspections_router)
+app.include_router(inspection_images_router)
 
 @app.get("/")
 def root():
