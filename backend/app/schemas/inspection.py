@@ -6,11 +6,6 @@ from pydantic import BaseModel
 
 class InspectionCreate(BaseModel):
     inspection_type: str
-
-    product_name: Optional[str] = None
-    brand_name: Optional[str] = None
-    manufacturer_name: Optional[str] = None
-
     source_url: Optional[str] = None
 
 

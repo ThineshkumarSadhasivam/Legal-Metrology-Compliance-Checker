@@ -34,27 +34,55 @@ def create_inspection(
     db: Session = Depends(get_db)
 ):
 
+    # Validate inspection type
+    allowed_types = {
+        "PHYSICAL",
+        "ECOMMERCE"
+    }
+
+    inspection_type = payload.inspection_type.upper()
+
+    if inspection_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="inspection_type must be PHYSICAL or ECOMMERCE"
+        )
+
+    # E-commerce inspection requires URL
+    if (
+        inspection_type == "ECOMMERCE"
+        and not payload.source_url
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="source_url is required for ECOMMERCE inspection"
+        )
+
+    # Physical inspection should not require URL
+    source_url = (
+        payload.source_url
+        if inspection_type == "ECOMMERCE"
+        else None
+    )
+
     # Generate inspection number
     count = db.query(Inspection).count() + 1
 
-    inspection_number = (
-        f"LM-{count:05d}"
-    )
+    inspection_number = f"LM-{count:05d}"
 
     inspection = Inspection(
         inspection_number=inspection_number,
 
         officer_id=current_user.id,
 
-        inspection_type=payload.inspection_type,
+        inspection_type=inspection_type,
 
-        product_name=payload.product_name,
+        source_url=source_url,
 
-        brand_name=payload.brand_name,
-
-        manufacturer_name=payload.manufacturer_name,
-
-        source_url=payload.source_url,
+        # These will be populated after OCR + NER
+        product_name=None,
+        brand_name=None,
+        manufacturer_name=None,
 
         status="CREATED",
 
@@ -66,6 +94,7 @@ def create_inspection(
     db.refresh(inspection)
 
     return inspection
+
 
 
 @router.get(
