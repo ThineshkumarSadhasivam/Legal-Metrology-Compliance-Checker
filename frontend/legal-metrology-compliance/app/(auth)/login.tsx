@@ -1,124 +1,267 @@
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  StyleSheet,
+  View,
   Text,
   TextInput,
-  View,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from "react-native";
+import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+
+import { loginOfficer } from "../../services/api";
 
 export default function LoginScreen() {
-  const handleLogin = () => {
-    router.replace("/(officer)/dashboard");
+  const router = useRouter();
+
+  const [officerId, setOfficerId] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async () => {
+    // Basic validation
+    if (!officerId.trim() || !password.trim()) {
+      setError("Please enter Officer ID and password.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      // Send login request to FastAPI
+      const data = await loginOfficer(
+        officerId.trim(),
+        password
+      );
+
+      console.log("Login successful:", data);
+
+      // Store JWT securely
+      await SecureStore.setItemAsync(
+        "access_token",
+        data.access_token
+      );
+
+      await SecureStore.setItemAsync(
+        "officer_id",
+        data.officer_id
+      );
+
+      await SecureStore.setItemAsync(
+        "role",
+        data.role
+      );
+
+      // Navigate to officer dashboard
+      router.replace("/(officer)/dashboard");
+
+    } catch (err: any) {
+      console.error("Login error:", err);
+
+      if (err.message) {
+        setError(err.message);
+      } else {
+        setError(
+          "Unable to connect to server. Please check your connection."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.keyboard}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={
+        Platform.OS === "ios" ? "padding" : undefined
+      }
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.content}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="shield-checkmark" size={48} color="#111827" />
+        <View style={styles.card}>
+
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>
+              Legal Metrology
+            </Text>
+
+            <Text style={styles.subtitle}>
+              Compliance Management Platform
+            </Text>
           </View>
 
-          <Text style={styles.title}>Legal Metrology</Text>
-
-          <Text style={styles.subtitle}>
-            Compliance & Inspection Platform
-          </Text>
-
+          {/* Login Section */}
           <View style={styles.form}>
-            <Text style={styles.label}>Officer ID</Text>
 
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="#6B7280" />
+            <Text style={styles.formTitle}>
+              Officer Login
+            </Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Enter officer ID"
-                placeholderTextColor="#9CA3AF"
-                autoCapitalize="none"
-              />
-            </View>
+            <Text style={styles.label}>
+              Officer ID
+            </Text>
 
-            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter Officer ID"
+              placeholderTextColor="#999"
+              value={officerId}
+              onChangeText={(text) => {
+                setOfficerId(text);
+                setError("");
+              }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              editable={!loading}
+            />
 
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" />
+            <Text style={styles.label}>
+              Password
+            </Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Enter password"
-                placeholderTextColor="#9CA3AF"
-                secureTextEntry
-              />
-            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter password"
+              placeholderTextColor="#999"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                setError("");
+              }}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
 
-            <Pressable style={styles.loginButton} onPress={handleLogin}>
-              <Text style={styles.loginText}>LOGIN</Text>
+            {/* Error Message */}
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>
+                  {error}
+                </Text>
+              </View>
+            ) : null}
 
-              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-            </Pressable>
+            {/* Login Button */}
+            <TouchableOpacity
+              style={[
+                styles.loginButton,
+                loading && styles.loginButtonDisabled,
+              ]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator
+                    size="small"
+                    color="#FFFFFF"
+                  />
+
+                  <Text style={styles.loginButtonText}>
+                    Signing in...
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.loginButtonText}>
+                  Sign In
+                </Text>
+              )}
+            </TouchableOpacity>
+
           </View>
 
-          <Text style={styles.footer}>
-            Authorized Enforcement Personnel
-          </Text>
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Authorized Enforcement Personnel Only
+            </Text>
+
+            <Text style={styles.versionText}>
+              Legal Metrology Compliance Platform
+            </Text>
+          </View>
+
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F4F6F8",
   },
 
-  keyboard: {
-    flex: 1,
-  },
-
-  content: {
-    flex: 1,
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: "center",
-    paddingHorizontal: 28,
-  },
-
-  logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: "#E5E7EB",
     alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    marginBottom: 20,
+    padding: 24,
+  },
+
+  card: {
+    width: "100%",
+    maxWidth: 450,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 28,
+
+    // Shadow - iOS
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+
+    // Shadow - Android
+    elevation: 5,
+  },
+
+  header: {
+    alignItems: "center",
+    marginBottom: 35,
   },
 
   title: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#111827",
+    color: "#1F2937",
     textAlign: "center",
   },
 
   subtitle: {
-    fontSize: 15,
+    marginTop: 8,
+    fontSize: 14,
     color: "#6B7280",
     textAlign: "center",
-    marginTop: 6,
   },
 
   form: {
-    marginTop: 40,
+    width: "100%",
+  },
+
+  formTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 24,
   },
 
   label: {
@@ -126,48 +269,75 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#374151",
     marginBottom: 8,
-    marginTop: 18,
-  },
-
-  inputContainer: {
-    height: 52,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 15,
   },
 
   input: {
-    flex: 1,
-    marginLeft: 10,
+    height: 50,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 14,
     fontSize: 15,
     color: "#111827",
+    backgroundColor: "#FFFFFF",
+    marginBottom: 18,
+  },
+
+  errorContainer: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+
+  errorText: {
+    color: "#B91C1C",
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   loginButton: {
-    height: 54,
-    borderRadius: 12,
-    backgroundColor: "#111827",
-    marginTop: 30,
-    flexDirection: "row",
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: "#1F4E79",
     justifyContent: "center",
+    alignItems: "center",
+    marginTop: 4,
+  },
+
+  loginButtonDisabled: {
+    opacity: 0.7,
+  },
+
+  loginButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  loadingContainer: {
+    flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
 
-  loginText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
+  footer: {
+    alignItems: "center",
+    marginTop: 30,
   },
 
-  footer: {
-    textAlign: "center",
-    color: "#9CA3AF",
+  footerText: {
     fontSize: 12,
-    marginTop: 30,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+
+  versionText: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginTop: 6,
+    textAlign: "center",
   },
 });
