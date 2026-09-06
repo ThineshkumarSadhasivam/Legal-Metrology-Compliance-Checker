@@ -20,6 +20,9 @@ from app.models.applicability import Applicability
 from app.api.applicability import router as applicability_router
 from app.models.product_classification import ProductClassification
 from app.api.product_classification import router as product_classification_router
+from app.models.rule_version import RuleVersion
+from app.models.compliance_rule import ComplianceRule
+from app.models.rule_requirement import RuleRequirement
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
