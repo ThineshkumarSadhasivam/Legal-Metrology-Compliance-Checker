@@ -16,6 +16,11 @@ from app.models.inspection_image import InspectionImage
 from app.models.ocr_result import OCRResult
 from app.models.declaration import Declaration
 from app.api.declarations import router as declarations_router
+from app.models.applicability import Applicability
+from app.api.applicability import router as applicability_router
+from app.models.product_classification import ProductClassification
+from app.api.product_classification import router as product_classification_router
+
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
@@ -42,6 +47,8 @@ app.include_router(inspections_router)
 app.include_router(inspection_images_router)
 app.include_router(ocr_router)
 app.include_router(declarations_router)
+app.include_router(applicability_router)
+app.include_router(product_classification_router)
 
 @app.get("/")
 def root():
