@@ -14,8 +14,8 @@ from app.models.user import User
 from app.models.inspection import Inspection
 from app.models.inspection_image import InspectionImage
 from app.models.ocr_result import OCRResult
-
-
+from app.models.declaration import Declaration
+from app.api.declarations import router as declarations_router
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
@@ -41,7 +41,7 @@ app.include_router(auth_router)
 app.include_router(inspections_router)
 app.include_router(inspection_images_router)
 app.include_router(ocr_router)
-
+app.include_router(declarations_router)
 
 @app.get("/")
 def root():
