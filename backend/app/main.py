@@ -23,9 +23,13 @@ from app.api.product_classification import router as product_classification_rout
 from app.models.rule_version import RuleVersion
 from app.models.compliance_rule import ComplianceRule
 from app.models.rule_requirement import RuleRequirement
+from app.models.rule_amendment_change import RuleAmendmentChange
+from app.models.compliance_finding import ComplianceFinding
+from app.api.router import api_router
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
 
 
 app = FastAPI(
@@ -52,6 +56,7 @@ app.include_router(ocr_router)
 app.include_router(declarations_router)
 app.include_router(applicability_router)
 app.include_router(product_classification_router)
+app.include_router(api_router)
 
 @app.get("/")
 def root():

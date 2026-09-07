@@ -10,7 +10,7 @@ from app.models.inspection import Inspection
 from app.models.applicability import Applicability
 from app.models.product_classification import ProductClassification
 
-from app.services.applicability_service import classify_applicability
+from app.services.applicability_service import ApplicabilityService
 
 
 router = APIRouter(tags=["Applicability"])
@@ -22,7 +22,7 @@ router = APIRouter(tags=["Applicability"])
 
 class ApplicabilityRequest(BaseModel):
     """
-    Applicability is now derived automatically from
+    Applicability is derived automatically from
     ProductClassification.
 
     No manual commodity/package input is required.
@@ -85,7 +85,10 @@ def create_applicability(
     # 3. Make sure classification is usable
     # -----------------------------------------------------
 
-    if classification.status == "INCONCLUSIVE":
+    if classification.status in (
+        "INCONCLUSIVE",
+        "UNCERTAIN",
+    ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
@@ -95,19 +98,13 @@ def create_applicability(
         )
 
     # -----------------------------------------------------
-    # 4. Run applicability engine
+    # 4. Run NEW applicability engine
     # -----------------------------------------------------
 
     try:
-        result = classify_applicability(
-            inspection_type=inspection.inspection_type,
-            commodity_category=classification.commodity_category,
-            package_type=classification.package_type,
-            is_imported=classification.is_imported,
-            is_multi_piece=classification.is_multi_piece,
-            is_combination=classification.is_combination,
-            is_group_package=classification.is_group_package,
-        )
+        service = ApplicabilityService(db)
+
+        decision = service.evaluate_and_store(inspection)
 
     except ValueError as exc:
         raise HTTPException(
@@ -116,10 +113,10 @@ def create_applicability(
         )
 
     # -----------------------------------------------------
-    # 5. Check existing applicability
+    # 5. Get stored applicability result
     # -----------------------------------------------------
 
-    existing = (
+    applicability = (
         db.query(Applicability)
         .filter(
             Applicability.inspection_id == inspection_id
@@ -127,137 +124,14 @@ def create_applicability(
         .first()
     )
 
-    # -----------------------------------------------------
-    # 6. Update existing result
-    # -----------------------------------------------------
-
-    if existing:
-
-        existing.inspection_type = (
-            inspection.inspection_type
+    if not applicability:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Applicability result could not be stored",
         )
-
-        existing.commodity_category = (
-            classification.commodity_category
-        )
-
-        existing.package_type = (
-            classification.package_type
-        )
-
-        existing.is_imported = (
-            classification.is_imported
-        )
-
-        existing.is_multi_piece = (
-            classification.is_multi_piece
-        )
-
-        existing.is_combination = (
-            classification.is_combination
-        )
-
-        existing.is_group_package = (
-            classification.is_group_package
-        )
-
-        existing.exemption_status = (
-            result["exemption_status"]
-        )
-
-        existing.exemption_reason = (
-            result["exemption_reason"]
-        )
-
-        existing.rule_version = (
-            result["rule_version"]
-        )
-
-        existing.applicable_provisions = str(
-            result["applicable_provisions"]
-        )
-
-        existing.classification_confidence = (
-            classification.confidence
-        )
-
-        existing.classification_status = (
-            classification.status
-        )
-
-        db.commit()
-        db.refresh(existing)
-
-        applicability = existing
 
     # -----------------------------------------------------
-    # 7. Create new result
-    # -----------------------------------------------------
-
-    else:
-
-        applicability = Applicability(
-            inspection_id=inspection.id,
-
-            inspection_type=(
-                inspection.inspection_type
-            ),
-
-            commodity_category=(
-                classification.commodity_category
-            ),
-
-            package_type=(
-                classification.package_type
-            ),
-
-            is_imported=(
-                classification.is_imported
-            ),
-
-            is_multi_piece=(
-                classification.is_multi_piece
-            ),
-
-            is_combination=(
-                classification.is_combination
-            ),
-
-            is_group_package=(
-                classification.is_group_package
-            ),
-
-            exemption_status=(
-                result["exemption_status"]
-            ),
-
-            exemption_reason=(
-                result["exemption_reason"]
-            ),
-
-            rule_version=(
-                result["rule_version"]
-            ),
-
-            applicable_provisions=str(
-                result["applicable_provisions"]
-            ),
-
-            classification_confidence=(
-                classification.confidence
-            ),
-
-            classification_status=(
-                classification.status
-            ),
-        )
-
-        db.add(applicability)
-        db.commit()
-        db.refresh(applicability)
-
-    # -----------------------------------------------------
-    # 8. Return result
+    # 6. Return result
     # -----------------------------------------------------
 
     return {
@@ -265,98 +139,54 @@ def create_applicability(
 
         "inspection_id": inspection.id,
 
-        "inspection_number": (
-            inspection.inspection_number
-        ),
+        "inspection_number": inspection.inspection_number,
 
         "source_classification": {
-            "commodity_category": (
-                classification.commodity_category
-            ),
+            "commodity_category": classification.commodity_category,
 
-            "package_type": (
-                classification.package_type
-            ),
+            "package_type": classification.package_type,
 
-            "is_imported": (
-                classification.is_imported
-            ),
+            "is_imported": classification.is_imported,
 
-            "is_multi_piece": (
-                classification.is_multi_piece
-            ),
+            "is_multi_piece": classification.is_multi_piece,
 
-            "is_combination": (
-                classification.is_combination
-            ),
+            "is_combination": classification.is_combination,
 
-            "is_group_package": (
-                classification.is_group_package
-            ),
+            "is_group_package": classification.is_group_package,
 
-            "confidence": (
-                classification.confidence
-            ),
+            "confidence": classification.confidence,
 
-            "status": (
-                classification.status
-            ),
+            "status": classification.status,
         },
 
         "applicability": {
             "id": applicability.id,
 
-            "inspection_type": (
-                applicability.inspection_type
-            ),
+            "inspection_type": applicability.inspection_type,
 
-            "commodity_category": (
-                applicability.commodity_category
-            ),
+            "commodity_category": applicability.commodity_category,
 
-            "package_type": (
-                applicability.package_type
-            ),
+            "package_type": applicability.package_type,
 
-            "is_imported": (
-                applicability.is_imported
-            ),
+            "is_imported": applicability.is_imported,
 
-            "is_multi_piece": (
-                applicability.is_multi_piece
-            ),
+            "is_multi_piece": applicability.is_multi_piece,
 
-            "is_combination": (
-                applicability.is_combination
-            ),
+            "is_combination": applicability.is_combination,
 
-            "is_group_package": (
-                applicability.is_group_package
-            ),
+            "is_group_package": applicability.is_group_package,
 
-            "exemption_status": (
-                applicability.exemption_status
-            ),
+            "exemption_status": applicability.exemption_status,
 
-            "exemption_reason": (
-                applicability.exemption_reason
-            ),
+            "exemption_reason": applicability.exemption_reason,
 
-            "rule_version": (
-                applicability.rule_version
-            ),
+            "rule_version": applicability.rule_version,
 
-            "applicable_provisions": (
-                applicability.applicable_provisions
-            ),
+            "applicable_provisions": applicability.applicable_provisions,
 
-            "classification_confidence": (
-                applicability.classification_confidence
-            ),
+            "classification_confidence": applicability.classification_confidence,
 
-            "classification_status": (
-                applicability.classification_status
-            ),
+            "classification_status": applicability.classification_status,
         },
     }
 
@@ -415,63 +245,35 @@ def get_applicability(
     return {
         "inspection_id": inspection.id,
 
-        "inspection_number": (
-            inspection.inspection_number
-        ),
+        "inspection_number": inspection.inspection_number,
 
         "applicability": {
             "id": applicability.id,
 
-            "inspection_type": (
-                applicability.inspection_type
-            ),
+            "inspection_type": applicability.inspection_type,
 
-            "commodity_category": (
-                applicability.commodity_category
-            ),
+            "commodity_category": applicability.commodity_category,
 
-            "package_type": (
-                applicability.package_type
-            ),
+            "package_type": applicability.package_type,
 
-            "is_imported": (
-                applicability.is_imported
-            ),
+            "is_imported": applicability.is_imported,
 
-            "is_multi_piece": (
-                applicability.is_multi_piece
-            ),
+            "is_multi_piece": applicability.is_multi_piece,
 
-            "is_combination": (
-                applicability.is_combination
-            ),
+            "is_combination": applicability.is_combination,
 
-            "is_group_package": (
-                applicability.is_group_package
-            ),
+            "is_group_package": applicability.is_group_package,
 
-            "exemption_status": (
-                applicability.exemption_status
-            ),
+            "exemption_status": applicability.exemption_status,
 
-            "exemption_reason": (
-                applicability.exemption_reason
-            ),
+            "exemption_reason": applicability.exemption_reason,
 
-            "rule_version": (
-                applicability.rule_version
-            ),
+            "rule_version": applicability.rule_version,
 
-            "applicable_provisions": (
-                applicability.applicable_provisions
-            ),
+            "applicable_provisions": applicability.applicable_provisions,
 
-            "classification_confidence": (
-                applicability.classification_confidence
-            ),
+            "classification_confidence": applicability.classification_confidence,
 
-            "classification_status": (
-                applicability.classification_status
-            ),
+            "classification_status": applicability.classification_status,
         },
     }
